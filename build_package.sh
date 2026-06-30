@@ -10,6 +10,17 @@ mkdir -p build_workspace/SOURCES
 mkdir -p build_workspace/SPECS
 mkdir -p build_workspace/BUILD build_workspace/RPMS build_workspace/SRPMS
 
+echo "Vendoring dependencies for offline Copr build..."
+cargo vendor > /dev/null 2>&1
+mkdir -p .cargo
+cat <<EOF > .cargo/config.toml
+[source.crates-io]
+replace-with = "vendored-sources"
+
+[source.vendored-sources]
+directory = "vendor"
+EOF
+
 tar --exclude='build_workspace' --exclude='.git' --exclude='target' -czf build_workspace/SOURCES/libinput-rs-${VERSION}.tar.gz .
 cp libinput-rs.spec build_workspace/SPECS/
 

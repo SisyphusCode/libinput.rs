@@ -94,6 +94,8 @@ impl DeviceWrapper {
                         self.touch_start_time = Some(Instant::now());
                         self.tap_emitted = false;
                         self.touch_fingers = 1;
+                        self.last_x = None;
+                        self.last_y = None;
                     } else {
                         // Reset tracking state when the finger is lifted
                         
@@ -119,10 +121,14 @@ impl DeviceWrapper {
                 } else if ev.code() == Key::BTN_TOOL_DOUBLETAP.code() {
                     if ev.value() != 0 {
                         self.touch_fingers = 2;
+                    } else if self.touch_active {
+                        self.touch_fingers = 1;
                     }
                 } else if ev.code() == Key::BTN_TOOL_TRIPLETAP.code() {
                     if ev.value() != 0 {
                         self.touch_fingers = 3;
+                    } else if self.touch_active {
+                        self.touch_fingers = 2;
                     }
                 }
                 
@@ -153,6 +159,7 @@ impl DeviceWrapper {
             }
             EventType::SYNCHRONIZATION => {
                 if ev.code() == 0 { // SYN_REPORT code is 0
+                    log::info!("SYN_REPORT: touch_active={}, touch_fingers={}, dx={}, dy={}, dwt_active={}", self.touch_active, self.touch_fingers, self.current_dx, self.current_dy, dwt_active);
                     if dwt_active {
                         // Throw away movement completely
                         self.current_dx = 0;
