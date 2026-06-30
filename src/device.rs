@@ -76,11 +76,11 @@ impl DeviceWrapper {
         }
 
         // Disable-While-Typing (DWT) check
+        let mut dwt_active = false;
         if config.disable_while_typing {
             if let Some(typing_time) = last_global_typing_time {
                 if typing_time.elapsed() < Duration::from_millis(500) {
-                    // Ignore touchpad events while typing
-                    return Ok(());
+                    dwt_active = true;
                 }
             }
         }
@@ -98,7 +98,7 @@ impl DeviceWrapper {
                         // Reset tracking state when the finger is lifted
                         
                         // Tap-to-click logic
-                        if config.tap_to_click && !self.tap_emitted {
+                        if config.tap_to_click && !self.tap_emitted && !dwt_active {
                             if let Some(start) = self.touch_start_time {
                                 if start.elapsed() < Duration::from_millis(250) {
                                     // Emit click
@@ -153,7 +153,14 @@ impl DeviceWrapper {
             }
             EventType::SYNCHRONIZATION => {
                 if ev.code() == 0 { // SYN_REPORT code is 0
-                    if self.current_dx != 0 || self.current_dy != 0 {
+                    if dwt_active {
+                        // Throw away movement completely
+                        self.current_dx = 0;
+                        self.current_dy = 0;
+                        self.remainder_x = 0.0;
+                        self.remainder_y = 0.0;
+                        self.tap_emitted = true; // prevent taps from happening
+                    } else if self.current_dx != 0 || self.current_dy != 0 {
                         self.tap_emitted = true; // Moved enough to cancel tap
 
                         if self.touch_fingers == 1 {
