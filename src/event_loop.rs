@@ -88,7 +88,18 @@ pub fn run(
                 };
 
                 if let Some(evs) = device_events {
+                    let mut trigger_reset = false;
                     for ev in evs {
+                        if wrapper.is_keyboard && ev.event_type() == evdev::EventType::KEY && ev.value() == 1 {
+                            if ev.code() == evdev::Key::KEY_R.code() {
+                                if let Ok(state) = wrapper.device.get_key_state() {
+                                    if state.contains(evdev::Key::KEY_LEFTCTRL) && state.contains(evdev::Key::KEY_LEFTALT) {
+                                        trigger_reset = true;
+                                    }
+                                }
+                            }
+                        }
+
                         if let Err(e) = wrapper.process_event(ev, v_device, config, last_global_typing_time) {
                             warn!("Error processing event: {}", e);
                         }
@@ -97,6 +108,15 @@ pub fn run(
                                 last_global_typing_time = Some(typing_time);
                             }
                         }
+                    }
+
+                    if trigger_reset {
+                        warn!("Manual hardware reset triggered via Ctrl+Alt+R! Resetting elan_i2c...");
+                        std::thread::spawn(|| {
+                            let _ = std::process::Command::new("modprobe").arg("-r").arg("elan_i2c").output();
+                            std::thread::sleep(std::time::Duration::from_millis(500));
+                            let _ = std::process::Command::new("modprobe").arg("elan_i2c").output();
+                        });
                     }
                 }
             }
