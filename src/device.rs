@@ -157,10 +157,8 @@ impl DeviceWrapper {
                 let code = ev.code();
                 if code == AbsoluteAxisType::ABS_X.0 {
                     let val = ev.value();
-                    if self.touch_active {
-                        if let Some(prev_x) = self.last_x {
-                            self.current_dx += val - prev_x;
-                        }
+                    if let Some(prev_x) = self.last_x {
+                        self.current_dx += val - prev_x;
                     }
                     self.last_x = Some(val);
                 } else if code == AbsoluteAxisType::ABS_Y.0 {
