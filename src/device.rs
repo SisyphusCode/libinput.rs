@@ -28,6 +28,8 @@ pub struct DeviceWrapper {
     pub last_typing_time: Option<Instant>,
     pub ctrl_pressed: bool,
     pub alt_pressed: bool,
+    pub last_movement_time: Option<Instant>,
+    pub active_click_button: Option<u16>,
 }
 
 impl DeviceWrapper {
@@ -54,6 +56,8 @@ impl DeviceWrapper {
             last_typing_time: None,
             ctrl_pressed: false,
             alt_pressed: false,
+            last_movement_time: None,
+            active_click_button: None,
         }
     }
 
@@ -64,25 +68,21 @@ impl DeviceWrapper {
         config: &crate::config::InputConfig,
         last_global_typing_time: Option<Instant>,
     ) -> Result<(), Box<dyn Error>> {
-        match ev.event_type() {
-            EventType::KEY => {
-                let code = ev.code();
-                let value = ev.value();
-                
-                if code == Key::KEY_LEFTCTRL.code() || code == Key::KEY_RIGHTCTRL.code() {
-                    self.ctrl_pressed = value != 0;
-                }
-                if code == Key::KEY_LEFTALT.code() || code == Key::KEY_RIGHTALT.code() {
-                    self.alt_pressed = value != 0;
-                }
-
-                if self.is_keyboard && value != 0 {
-                    // value 1 is press, 2 is repeat
-                    self.last_typing_time = Some(Instant::now());
-                }
-                return Ok(());
+        if ev.event_type() == EventType::KEY {
+            let code = ev.code();
+            let value = ev.value();
+            
+            if code == Key::KEY_LEFTCTRL.code() || code == Key::KEY_RIGHTCTRL.code() {
+                self.ctrl_pressed = value != 0;
             }
-            _ => {}
+            if code == Key::KEY_LEFTALT.code() || code == Key::KEY_RIGHTALT.code() {
+                self.alt_pressed = value != 0;
+            }
+
+            if self.is_keyboard && value != 0 {
+                // value 1 is press, 2 is repeat
+                self.last_typing_time = Some(Instant::now());
+            }
         }
 
         if !self.is_absolute {
@@ -137,24 +137,53 @@ impl DeviceWrapper {
                 } else if ev.code() == Key::BTN_TOOL_DOUBLETAP.code() {
                     if ev.value() != 0 {
                         self.touch_fingers = 2;
-                    } else if self.touch_active {
+                    } else {
                         self.touch_fingers = 1;
                     }
                 } else if ev.code() == Key::BTN_TOOL_TRIPLETAP.code() {
                     if ev.value() != 0 {
                         self.touch_fingers = 3;
-                    } else if self.touch_active {
+                    } else {
                         self.touch_fingers = 2;
                     }
                 }
                 
                 // Only emit standard buttons (left, right, middle) directly
-                if ev.code() == Key::BTN_LEFT.code() || ev.code() == Key::BTN_RIGHT.code() || ev.code() == Key::BTN_MIDDLE.code() {
-                    v_device.emit_raw(ev)?;
+                let mut code = ev.code();
+                if code == Key::BTN_LEFT.code() {
+                    if ev.value() != 0 {
+                        // Press event - map physical clickpad clicks to right/middle click based on finger count
+                        if self.touch_fingers == 2 {
+                            code = Key::BTN_RIGHT.code();
+                        } else if self.touch_fingers == 3 {
+                            code = Key::BTN_MIDDLE.code();
+                        }
+                        self.active_click_button = Some(code);
+                    } else {
+                        // Release event - use the same button code that was pressed
+                        if let Some(active_code) = self.active_click_button {
+                            code = active_code;
+                        }
+                        self.active_click_button = None;
+                    }
+                }
+                
+                if code == Key::BTN_LEFT.code() || code == Key::BTN_RIGHT.code() || code == Key::BTN_MIDDLE.code() {
+                    v_device.emit_raw(InputEvent::new(EventType::KEY, code, ev.value()))?;
                 }
             }
             EventType::ABSOLUTE => {
                 let code = ev.code();
+                if code == AbsoluteAxisType::ABS_X.0 || code == AbsoluteAxisType::ABS_Y.0 {
+                    if let Some(last_time) = self.last_movement_time {
+                        if last_time.elapsed() > std::time::Duration::from_millis(50) {
+                            self.last_x = None;
+                            self.last_y = None;
+                        }
+                    }
+                    self.last_movement_time = Some(std::time::Instant::now());
+                }
+
                 if code == AbsoluteAxisType::ABS_X.0 {
                     let val = ev.value();
                     if let Some(prev_x) = self.last_x {
@@ -163,17 +192,14 @@ impl DeviceWrapper {
                     self.last_x = Some(val);
                 } else if code == AbsoluteAxisType::ABS_Y.0 {
                     let val = ev.value();
-                    if self.touch_active {
-                        if let Some(prev_y) = self.last_y {
-                            self.current_dy += val - prev_y;
-                        }
+                    if let Some(prev_y) = self.last_y {
+                        self.current_dy += val - prev_y;
                     }
                     self.last_y = Some(val);
                 }
             }
             EventType::SYNCHRONIZATION => {
                 if ev.code() == 0 { // SYN_REPORT code is 0
-                    log::info!("SYN_REPORT: touch_active={}, touch_fingers={}, dx={}, dy={}, dwt_active={}", self.touch_active, self.touch_fingers, self.current_dx, self.current_dy, dwt_active);
                     if dwt_active {
                         // Throw away movement completely
                         self.current_dx = 0;
@@ -184,7 +210,7 @@ impl DeviceWrapper {
                     } else if self.current_dx != 0 || self.current_dy != 0 {
                         self.tap_emitted = true; // Moved enough to cancel tap
 
-                        if self.touch_fingers == 1 {
+                        if self.touch_fingers <= 1 {
                             // Touchpads emit high-resolution absolute coordinates. We must scale these down 
                             // so they feel like a standard relative mouse to the compositor.
                             let hardware_scale = 0.18; // Increased from 0.12 for faster speed
