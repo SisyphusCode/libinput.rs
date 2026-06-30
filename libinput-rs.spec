@@ -1,7 +1,7 @@
 %global debug_package %{nil}
 Name:           libinput-rs
 Version:        0.1.0
-Release:        6%{?dist}
+Release:        7%{?dist}
 Summary:        A memory-safe Rust replacement for the libinput stack
 
 License:        MIT
