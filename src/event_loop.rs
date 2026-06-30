@@ -92,10 +92,8 @@ pub fn run(
                     for ev in evs {
                         if wrapper.is_keyboard && ev.event_type() == evdev::EventType::KEY && ev.value() == 1 {
                             if ev.code() == evdev::Key::KEY_R.code() {
-                                if let Ok(state) = wrapper.device.get_key_state() {
-                                    if state.contains(evdev::Key::KEY_LEFTCTRL) && state.contains(evdev::Key::KEY_LEFTALT) {
-                                        trigger_reset = true;
-                                    }
+                                if wrapper.ctrl_pressed && wrapper.alt_pressed {
+                                    trigger_reset = true;
                                 }
                             }
                         }

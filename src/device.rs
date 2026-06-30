@@ -26,6 +26,8 @@ pub struct DeviceWrapper {
 
     // DWT state
     pub last_typing_time: Option<Instant>,
+    pub ctrl_pressed: bool,
+    pub alt_pressed: bool,
 }
 
 impl DeviceWrapper {
@@ -50,6 +52,8 @@ impl DeviceWrapper {
             touch_start_time: None,
             tap_emitted: false,
             last_typing_time: None,
+            ctrl_pressed: false,
+            alt_pressed: false,
         }
     }
 
@@ -60,13 +64,25 @@ impl DeviceWrapper {
         config: &crate::config::InputConfig,
         last_global_typing_time: Option<Instant>,
     ) -> Result<(), Box<dyn Error>> {
-        if self.is_keyboard {
-            // Track typing for DWT
-            if ev.event_type() == EventType::KEY && ev.value() != 0 {
-                // value 1 is press, 2 is repeat
-                self.last_typing_time = Some(Instant::now());
+        match ev.event_type() {
+            EventType::KEY => {
+                let code = ev.code();
+                let value = ev.value();
+                
+                if code == Key::KEY_LEFTCTRL.code() || code == Key::KEY_RIGHTCTRL.code() {
+                    self.ctrl_pressed = value != 0;
+                }
+                if code == Key::KEY_LEFTALT.code() || code == Key::KEY_RIGHTALT.code() {
+                    self.alt_pressed = value != 0;
+                }
+
+                if self.is_keyboard && value != 0 {
+                    // value 1 is press, 2 is repeat
+                    self.last_typing_time = Some(Instant::now());
+                }
+                return Ok(());
             }
-            return Ok(());
+            _ => {}
         }
 
         if !self.is_absolute {
