@@ -9,12 +9,12 @@ srpm:
 	echo '' >> .cargo/config.toml
 	echo '[source.vendored-sources]' >> .cargo/config.toml
 	echo 'directory = "vendor"' >> .cargo/config.toml
-	tar --transform 's,^\.,libinput-rs-0.1.0,' \
+	tar --transform 's,^,libinput-rs-0.1.0/,' \
 	    --exclude='.git' \
 	    --exclude='target' \
 	    --exclude='build_workspace' \
 	    -czf $(outdir)/libinput-rs-0.1.0.tar.gz \
-	    .
+	    * .cargo
 	@echo "Building SRPM..."
 	rpmbuild -bs $(spec) \
 	    --define "_sourcedir $(outdir)" \
