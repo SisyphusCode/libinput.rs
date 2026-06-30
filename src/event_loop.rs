@@ -111,24 +111,11 @@ pub fn run(
                     if trigger_reset {
                         static RESETTING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
                         if !RESETTING.swap(true, std::sync::atomic::Ordering::SeqCst) {
-                            println!("Manual hardware reset triggered via Ctrl+Alt+R! Resetting elan_i2c...");
+                            println!("Manual hardware reset triggered via Ctrl+Alt+R! Calling systemctl to reset module...");
                             std::thread::spawn(|| {
-                                if let Ok(entries) = std::fs::read_dir("/sys/bus/i2c/drivers/elan_i2c") {
-                                    let mut devices = Vec::new();
-                                    for entry in entries.filter_map(|e| e.ok()) {
-                                        let name = entry.file_name().to_string_lossy().to_string();
-                                        if name.contains("-") && name.len() < 10 {
-                                            devices.push(name);
-                                        }
-                                    }
-                                    for dev in &devices {
-                                        let _ = std::fs::write("/sys/bus/i2c/drivers/elan_i2c/unbind", format!("{}\n", dev));
-                                    }
-                                    std::thread::sleep(std::time::Duration::from_millis(1500));
-                                    for dev in &devices {
-                                        let _ = std::fs::write("/sys/bus/i2c/drivers/elan_i2c/bind", format!("{}\n", dev));
-                                    }
-                                }
+                                let _ = std::process::Command::new("systemctl").arg("start").arg("libinput-elan-reset.service").output();
+                                // Service takes 1 second to sleep, so we wait 2 seconds before unblocking
+                                std::thread::sleep(std::time::Duration::from_millis(2500));
                                 RESETTING.store(false, std::sync::atomic::Ordering::SeqCst);
                             });
                         }
