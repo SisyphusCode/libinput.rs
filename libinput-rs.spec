@@ -21,7 +21,7 @@ entirely in Rust.
 %setup -q
 
 %build
-cargo build --release
+cargo build --release --offline --frozen
 
 %install
 rm -rf %{buildroot}
