@@ -109,12 +109,29 @@ pub fn run(
                     }
 
                     if trigger_reset {
-                        warn!("Manual hardware reset triggered via Ctrl+Alt+R! Resetting elan_i2c...");
-                        std::thread::spawn(|| {
-                            let _ = std::process::Command::new("modprobe").arg("-r").arg("elan_i2c").output();
-                            std::thread::sleep(std::time::Duration::from_millis(500));
-                            let _ = std::process::Command::new("modprobe").arg("elan_i2c").output();
-                        });
+                        static RESETTING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+                        if !RESETTING.swap(true, std::sync::atomic::Ordering::SeqCst) {
+                            println!("Manual hardware reset triggered via Ctrl+Alt+R! Resetting elan_i2c...");
+                            std::thread::spawn(|| {
+                                if let Ok(entries) = std::fs::read_dir("/sys/bus/i2c/drivers/elan_i2c") {
+                                    let mut devices = Vec::new();
+                                    for entry in entries.filter_map(|e| e.ok()) {
+                                        let name = entry.file_name().to_string_lossy().to_string();
+                                        if name.contains("-") && name.len() < 10 {
+                                            devices.push(name);
+                                        }
+                                    }
+                                    for dev in &devices {
+                                        let _ = std::fs::write("/sys/bus/i2c/drivers/elan_i2c/unbind", format!("{}\n", dev));
+                                    }
+                                    std::thread::sleep(std::time::Duration::from_millis(1500));
+                                    for dev in &devices {
+                                        let _ = std::fs::write("/sys/bus/i2c/drivers/elan_i2c/bind", format!("{}\n", dev));
+                                    }
+                                }
+                                RESETTING.store(false, std::sync::atomic::Ordering::SeqCst);
+                            });
+                        }
                     }
                 }
             }

@@ -278,9 +278,9 @@ fn disable_autosuspend(dev_path: &std::path::Path) {
 pub fn try_open_device(path: &std::path::Path) -> Option<DeviceWrapper> {
     if let Ok(mut device) = evdev::Device::open(path) {
         let name = device.name().unwrap_or("Unknown").to_lowercase();
-        
-        // Ignore virtual devices we created to prevent infinite loops
-        if name.contains("virtual pointer") {
+        println!("Checking device at {:?}: {}", path, name);
+        // Skip virtual devices and non-pointers
+        if name.contains("virtual pointer") || name.contains("libinput-rs") {
             return None;
         }
         
@@ -289,18 +289,19 @@ pub fn try_open_device(path: &std::path::Path) -> Option<DeviceWrapper> {
                           device.supported_keys().map_or(false, |keys| keys.contains(Key::KEY_A));
         
         if is_pointer {
-            log::info!("Found target pointer hardware: {} at {:?}", name, path);
+            println!("Found target pointer hardware: {} at {:?}", name, path);
             if let Ok(_) = device.grab() {
-                // Attempt to aggressively disable autosuspend for the hardware to prevent firmware freezing
                 disable_autosuspend(path);
                 return Some(DeviceWrapper::new(device, path.to_path_buf()));
             } else {
-                log::warn!("Failed to grab pointer device: {:?}", path);
+                println!("Failed to grab pointer device: {:?}", path);
             }
         } else if is_keyboard {
-            log::info!("Found keyboard for DWT monitoring: {} at {:?}", name, path);
+            println!("Found keyboard for DWT monitoring: {} at {:?}", name, path);
             return Some(DeviceWrapper::new(device, path.to_path_buf()));
         }
+    } else {
+        println!("Failed to open device {:?}", path);
     }
     None
 }
