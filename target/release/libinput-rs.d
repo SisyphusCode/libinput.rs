@@ -1,0 +1,1 @@
+/home/Sisyphus/libinput-rs/target/release/libinput-rs: /home/Sisyphus/libinput-rs/src/config.rs /home/Sisyphus/libinput-rs/src/device.rs /home/Sisyphus/libinput-rs/src/event_loop.rs /home/Sisyphus/libinput-rs/src/main.rs /home/Sisyphus/libinput-rs/src/virtual_device.rs
