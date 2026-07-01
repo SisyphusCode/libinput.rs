@@ -5,7 +5,7 @@ Release:        7%{?dist}
 Summary:        A memory-safe Rust replacement for the libinput stack
 
 License:        MIT
-URL:            https://github.com/Sisyphus/libinput-rs
+URL:            https://github.com/SisyphusCode/libinput-rs
 Source0:        %{name}-%{version}.tar.gz
 
 BuildRequires:  cargo, rust, systemd-devel, gcc
